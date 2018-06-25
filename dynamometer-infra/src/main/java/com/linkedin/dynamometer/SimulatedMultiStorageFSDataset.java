@@ -17,6 +17,7 @@
  */
 package com.linkedin.dynamometer;
 
+import org.apache.hadoop.fs.DF;
 import org.apache.hadoop.hdfs.protocol.ExtendedBlock;
 
 import java.io.File;
@@ -24,8 +25,10 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URI;
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -43,22 +46,25 @@ import org.apache.hadoop.hdfs.DFSConfigKeys;
 import org.apache.hadoop.hdfs.protocol.Block;
 import org.apache.hadoop.hdfs.protocol.BlockListAsLongs;
 import org.apache.hadoop.hdfs.protocol.BlockLocalPathInfo;
-import org.apache.hadoop.hdfs.protocol.HdfsBlocksMetadata;
 import org.apache.hadoop.hdfs.server.common.HdfsServerConstants.ReplicaState;
 import org.apache.hadoop.hdfs.server.datanode.BlockMetadataHeader;
 import org.apache.hadoop.hdfs.server.datanode.ChunkChecksum;
 import org.apache.hadoop.hdfs.server.datanode.DataNode;
 import org.apache.hadoop.hdfs.server.datanode.DataStorage;
+import org.apache.hadoop.hdfs.server.datanode.DirectoryScanner;
+import org.apache.hadoop.hdfs.server.datanode.FileIoProvider;
 import org.apache.hadoop.hdfs.server.datanode.FinalizedReplica;
 import org.apache.hadoop.hdfs.server.datanode.Replica;
 import org.apache.hadoop.hdfs.server.datanode.ReplicaAlreadyExistsException;
 import org.apache.hadoop.hdfs.server.datanode.ReplicaHandler;
-import org.apache.hadoop.hdfs.server.datanode.ReplicaInPipelineInterface;
+import org.apache.hadoop.hdfs.server.datanode.ReplicaInPipeline;
 import org.apache.hadoop.hdfs.server.datanode.ReplicaInfo;
 import org.apache.hadoop.hdfs.server.datanode.ReplicaNotFoundException;
 import org.apache.hadoop.hdfs.server.datanode.SimulatedFSDataset;
 import org.apache.hadoop.hdfs.server.datanode.StorageLocation;
 import org.apache.hadoop.hdfs.server.datanode.UnexpectedReplicaStateException;
+import org.apache.hadoop.hdfs.server.datanode.checker.VolumeCheckResult;
+import org.apache.hadoop.hdfs.server.datanode.fsdataset.DataNodeVolumeMetrics;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.FsDatasetSpi;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.FsVolumeReference;
 import org.apache.hadoop.hdfs.server.datanode.fsdataset.FsVolumeSpi;
@@ -132,7 +138,7 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   // information about a single block
-  private class BInfo implements ReplicaInPipelineInterface {
+  private class BInfo implements ReplicaInPipeline {
     final Block theBlock;
     private boolean finalized = false; // if not finalized => ongoing creation
     SimulatedOutputStream oStream = null;
@@ -262,9 +268,36 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
             + theBlock);
       } else {
         SimulatedOutputStream crcStream = new SimulatedOutputStream();
+        SimulatedVolume volume = getStorage(theBlock).getVolume();
         return new ReplicaOutputStreams(oStream, crcStream, requestedChecksum,
-            getStorage(theBlock).getVolume().isTransientStorage());
+            volume, volume.getFileIoProvider());
       }
+    }
+
+    @Override public OutputStream createRestartMetaStream() throws IOException {
+      return null;
+    }
+
+    @Override public ReplicaInfo getReplicaInfo() {
+      return null;
+    }
+
+    @Override public void setWriter(Thread writer) {
+
+    }
+
+    @Override public void interruptThread() {
+
+    }
+
+    @Override public boolean attemptToSetWriter(Thread prevWriter,
+        Thread newWriter) {
+      return false;
+    }
+
+    @Override public void stopWriter(long xceiverStopTimeout)
+        throws IOException {
+
     }
 
     @Override
@@ -484,18 +517,15 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
       return storage.getCapacity() - storage.getUsed();
     }
 
-    @Override
-    public String getBasePath() {
+    @Override public URI getBaseURI() {
       return null;
     }
 
-    @Override
-    public String getPath(String bpid) throws IOException {
+    @Override public DF getUsageStats(Configuration conf) {
       return null;
     }
 
-    @Override
-    public File getFinalizedDir(String bpid) throws IOException {
+    @Override public StorageLocation getStorageLocation() {
       return null;
     }
 
@@ -509,12 +539,16 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
       return false;
     }
 
-    @Override
-    public void reserveSpaceForRbw(long bytesToReserve) {
+    @Override public void reserveSpaceForReplica(long bytesToReserve) {
+
     }
 
     @Override
     public void releaseReservedSpace(long bytesToRelease) {
+    }
+
+    @Override public void releaseLockedMemory(long bytesToRelease) {
+
     }
 
     @Override
@@ -536,6 +570,26 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
     @Override
     public byte[] loadLastPartialChunkChecksum(
         File blockFile, File metaFile) throws IOException {
+      return null;
+    }
+
+    @Override public LinkedList<ScanInfo> compileReport(String bpid,
+        LinkedList<ScanInfo> report,
+        DirectoryScanner.ReportCompiler reportCompiler)
+        throws InterruptedException, IOException {
+      return null;
+    }
+
+    @Override public FileIoProvider getFileIoProvider() {
+      return null;
+    }
+
+    @Override public DataNodeVolumeMetrics getMetrics() {
+      return null;
+    }
+
+    @Override public VolumeCheckResult check(VolumeCheckContext context)
+        throws Exception {
       return null;
     }
   }
@@ -972,15 +1026,16 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override // FsDatasetSpi
-  public synchronized ReplicaHandler createRbw(
-      StorageType storageType, ExtendedBlock b,
-      boolean allowLazyPersist) throws IOException {
-    return createTemporary(storageType, b, false);
+  public synchronized ReplicaHandler createRbw(StorageType storageType,
+      String storageId, ExtendedBlock b, boolean allowLazyPersist)
+      throws IOException {
+    return createTemporary(storageType, storageId, b, false);
   }
 
   @Override // FsDatasetSpi
-  public synchronized ReplicaHandler createTemporary(
-      StorageType storageType, ExtendedBlock b, boolean isTransfer) throws IOException {
+  public synchronized ReplicaHandler createTemporary(StorageType storageType,
+      String storageId, ExtendedBlock b, boolean isTransfer)
+      throws IOException {
     if (isValidBlock(b)) {
       throw new ReplicaAlreadyExistsException("Block " + b +
           " is valid, and cannot be written to.");
@@ -992,16 +1047,6 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
     BInfo binfo = new BInfo(b.getBlockPoolId(), b.getLocalBlock(), true);
     getBlockMap(b).put(binfo.theBlock, binfo);
     return new ReplicaHandler(binfo, null);
-  }
-
-  synchronized InputStream getBlockInputStream(ExtendedBlock b
-  ) throws IOException {
-    BInfo binfo = getBlockMap(b).get(b.getLocalBlock());
-    if (binfo == null) {
-      throw new IOException("No such Block " + b );
-    }
-
-    return binfo.getIStream();
   }
 
   @Override // FsDatasetSpi
@@ -1032,12 +1077,6 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
     }
     final SimulatedInputStream sin = binfo.getMetaIStream();
     return new LengthInputStream(sin, sin.getLength());
-  }
-
-  @Override
-  public Set<File> checkDataDir() {
-    // nothing to check for simulated data set
-    return null;
   }
 
   @Override // FsDatasetSpi
@@ -1226,9 +1265,7 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
 
   @Override // FsDatasetSpi
   public Replica updateReplicaUnderRecovery(ExtendedBlock oldBlock,
-      long recoveryId,
-      long newBlockId,
-      long newlength) throws IOException {
+      long recoveryId, long newBlockId, long newLength) throws IOException {
     return getBInfo(oldBlock);
   }
 
@@ -1257,7 +1294,7 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override
-  public ReplicaInPipelineInterface convertTemporaryToRbw(ExtendedBlock temporary)
+  public ReplicaInPipeline convertTemporaryToRbw(ExtendedBlock temporary)
       throws IOException {
     final BInfo r = getBlockMap(temporary).get(temporary.getLocalBlock());
     if (r == null) {
@@ -1271,12 +1308,6 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
 
   @Override
   public BlockLocalPathInfo getBlockLocalPathInfo(ExtendedBlock b) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public HdfsBlocksMetadata getHdfsBlocksMetadata(String bpid, long[] blockIds)
-      throws IOException {
     throw new UnsupportedOperationException();
   }
 
@@ -1309,11 +1340,6 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override
-  public List<FsVolumeSpi> getVolumes() {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
   public void addVolume(
       final StorageLocation location,
       final List<NamespaceInfo> nsInfos) throws IOException {
@@ -1340,12 +1366,7 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override
-  public List<FinalizedReplica> getFinalizedBlocks(String bpid) {
-    throw new UnsupportedOperationException();
-  }
-
-  @Override
-  public List<FinalizedReplica> getFinalizedBlocksOnPersistentStorage(String bpid) {
+  public List<ReplicaInfo> getFinalizedBlocks(String bpid) {
     throw new UnsupportedOperationException();
   }
 
@@ -1360,13 +1381,15 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override
-  public synchronized void removeVolumes(Set<File> volumes, boolean clearFailure) {
+  public synchronized void removeVolumes(Collection<StorageLocation> volumes,
+      boolean clearFailure) {
     throw new UnsupportedOperationException();
   }
 
   @Override
-  public void submitBackgroundSyncFileRangeRequest(ExtendedBlock block,
-      FileDescriptor fd, long offset, long nbytes, int flags) {
+  public void submitBackgroundSyncFileRangeRequest(final ExtendedBlock block,
+      final ReplicaOutputStreams outs, final long offset, final long nbytes,
+      final int flags) {
     throw new UnsupportedOperationException();
   }
 
@@ -1382,9 +1405,8 @@ public class SimulatedMultiStorageFSDataset extends SimulatedFSDataset {
   }
 
   @Override
-  public ReplicaInfo moveBlockAcrossStorage(ExtendedBlock block,
-      StorageType targetStorageType) throws IOException {
-    // TODO Auto-generated method stub
+  public ReplicaInfo moveBlockAcrossStorage(final ExtendedBlock block,
+      StorageType targetStorageType, String storageId) throws IOException {
     return null;
   }
 

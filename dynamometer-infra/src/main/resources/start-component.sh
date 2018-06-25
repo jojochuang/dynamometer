@@ -96,7 +96,8 @@ export HADOOP_CONF_DIR=${confDir}
 export YARN_CONF_DIR=${confDir}
 export HADOOP_LOG_DIR=${logDir}
 export HADOOP_PID_DIR=${pidDir}
-export HADOOP_CLASSPATH="$extraClasspathDir"
+#export HADOOP_CLASSPATH="$extraClasspathDir"
+export HADOOP_LIBEXEC_DIR="$hadoopHome/libexec"
 echo "Environment variables are set as:"
 echo "(note that this doesn't include changes made by hadoop-env.sh)"
 printenv
@@ -276,6 +277,14 @@ EOF
 
   echo "Executing the following:"
   echo "${HADOOP_HOME}/sbin/hadoop-daemon.sh start namenode $namenodeConfigs $NN_ADDITIONAL_ARGS"
+    echo "HADOOP_HOME=" + $HADOOP_HOME
+    echo "HADOOP_CONF_DIR=" + HADOOP_CONF_DIR
+    echo "HADOOP_HDFS_HOME=" + HADOOP_HDFS_HOME
+    echo "HADOOP_COMMON_HOME=" + HADOOP_COMMON_HOME
+    HADOOP_HOME=${HADOOP_HOME} HADOOP_CONF_DIR=${HADOOP_CONF_DIR} \
+    HADOOP_HDFS_HOME=${HADOOP_HDFS_HOME} HADOOP_COMMON_HOME=${HADOOP_COMMON_HOME} \
+    ${HADOOP_HOME}/bin/hadoop classpath
+
   if ! ${HADOOP_HOME}/sbin/hadoop-daemon.sh start namenode $namenodeConfigs $NN_ADDITIONAL_ARGS; then
     echo "Unable to launch NameNode; exiting."
     exit 1

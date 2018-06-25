@@ -6,6 +6,7 @@ package com.linkedin.dynamometer;
 
 import com.google.common.base.Optional;
 import com.google.common.base.Supplier;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import com.linkedin.dynamometer.workloadgenerator.audit.AuditLogDirectParser;
 import com.linkedin.dynamometer.workloadgenerator.audit.AuditReplayMapper;
@@ -44,6 +45,7 @@ import org.apache.hadoop.yarn.api.records.ApplicationId;
 import org.apache.hadoop.yarn.api.records.ApplicationReport;
 import org.apache.hadoop.yarn.api.records.ContainerId;
 import org.apache.hadoop.yarn.api.records.NodeId;
+import org.apache.hadoop.yarn.api.records.NodeLabel;
 import org.apache.hadoop.yarn.api.records.YarnApplicationState;
 import org.apache.hadoop.yarn.client.api.YarnClient;
 import org.apache.hadoop.yarn.conf.YarnConfiguration;
@@ -196,7 +198,9 @@ public class TestDynamometerInfra {
     miniYARNCluster.waitForNodeManagersToConnect(30000);
 
     RMNodeLabelsManager nodeLabelManager = miniYARNCluster.getResourceManager().getRMContext().getNodeLabelManager();
-    nodeLabelManager.addToCluserNodeLabels(Sets.newHashSet(NAMENODE_NODELABEL, DATANODE_NODELABEL));
+    nodeLabelManager.addToCluserNodeLabels(ImmutableSet.of(
+        NodeLabel.newInstance(NAMENODE_NODELABEL),
+        NodeLabel.newInstance(DATANODE_NODELABEL)));
     Map<NodeId, Set<String>> nodeLabels = new HashMap<>();
     nodeLabels.put(miniYARNCluster.getNodeManager(0).getNMContext().getNodeId(), Sets.newHashSet(NAMENODE_NODELABEL));
     nodeLabels.put(miniYARNCluster.getNodeManager(1).getNMContext().getNodeId(), Sets.newHashSet(DATANODE_NODELABEL));

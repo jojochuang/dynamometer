@@ -2,6 +2,11 @@
  * Copyright 2017 LinkedIn Corporation. All rights reserved. Licensed under the BSD-2 Clause license.
  * See LICENSE in the project root for license information.
  */
+
+repositories {
+  maven { url "https://repository.cloudera.com/cloudera/cdh-releases-rcs" }
+}
+
 buildscript {
   repositories {
     maven {
@@ -14,7 +19,7 @@ buildscript {
   }
 }
 
-def hadoopVersion = '2.7.5'
+def hadoopVersion = '3.0.0-cdh6.0.0-beta1'
 ext.deps = [
   hadoop: [
     hdfs: "org.apache.hadoop:hadoop-hdfs:${hadoopVersion}",
