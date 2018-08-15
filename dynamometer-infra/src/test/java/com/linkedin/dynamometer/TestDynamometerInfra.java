@@ -155,6 +155,8 @@ public class TestDynamometerInfra {
     conf.setBoolean(YarnConfiguration.YARN_MINICLUSTER_USE_RPC, true);
     conf.setInt(YarnConfiguration.RM_SCHEDULER_MINIMUM_ALLOCATION_MB, 128);
     conf.setBoolean(YarnConfiguration.NODE_LABELS_ENABLED, true);
+    conf.setFloat(YarnConfiguration.NM_MAX_PER_DISK_UTILIZATION_PERCENTAGE,
+        100.0f);
     for (String q : new String[] { "root", "root.default" } ) {
       conf.setInt(CapacitySchedulerConfiguration.PREFIX + q + "." + CapacitySchedulerConfiguration.CAPACITY, 100);
       String accessibleNodeLabelPrefix = CapacitySchedulerConfiguration.PREFIX + q + "." +
@@ -234,7 +236,7 @@ public class TestDynamometerInfra {
     infraAppId = null;
   }
 
-  @Test
+  @Test(timeout=600)
   public void testNameNodeInYARN() throws Exception {
     final Client client = new Client(JarFinder.getJar(ApplicationMaster.class));
     Configuration conf = new Configuration(yarnConf);

@@ -43,7 +43,10 @@ public class TestBlockGen {
 
   @After
   public void cleanUp() throws Exception {
-    dfsCluster.shutdown();
+    if (dfsCluster != null) {
+      dfsCluster.shutdown();
+      dfsCluster = null;
+    }
   }
 
   @Test
